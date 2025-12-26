@@ -49,25 +49,57 @@ class model_predict():
         img_name = 0
         for result in results:
             orig_img = result.orig_img
-            print(orig_img.shape)
+
+            img_h, img_w = orig_img.shape[:2]
+            # 获取置信度最高的检测框
             idx = int(np.argmax(result.boxes.conf))
-            x1, y1, x2, y2 = result.boxes.xyxy[idx].numpy()
-            # 对预测框进行扩充裁剪
-            img_h = len(orig_img[0])  # 图像高
-            print("*" * 100, img_h)
-            img_w = len(orig_img[1])  # 图像宽
-            w = x2 - x1
-            h = y2 - y1
+            x1, y1, x2, y2 = result.boxes.xyxy[idx].cpu().numpy() # 确保在CPU上处理
+
+            # 计算原始宽高
+            w, h = x2 - x1, y2 - y1
+
+            # 计算扩充边距
             pad_w = w * self.pad_ratio
             pad_h = h * self.pad_ratio
-            new_x1 = max(0, int(x1 - pad_w))  # 填充之后的坐标
+            
+            # 【核心修正】：正确的边界限定逻辑
+            new_x1 = max(0, int(x1 - pad_w))
             new_y1 = max(0, int(y1 - pad_h))
-            new_x2 = min(img_w - 1, int(x2 + pad_w))
-            new_y2 = min(img_h - 1, int(y2 + pad_h))
+            new_x2 = min(img_w, int(x2 + pad_w)) # 宽度边界使用 img_w
+            new_y2 = min(img_h, int(y2 + pad_h)) # 高度边界使用 img_h
+
+            # 执行裁剪
             crop = orig_img[new_y1:new_y2, new_x1:new_x2]
+            
+            # 【画质优化】：如果裁剪图太小，可以考虑适度放大并使用双线性插值
+            # 这样在展示时会减少锯齿感
+            if crop.shape[0] < 100: # 如果高度小于100像素
+                scale = 2.0
+                crop = cv.resize(crop, None, fx=scale, fy=scale, interpolation=cv.INTER_LINEAR)
+            
             crop_image_list.append(crop)
             cv.imwrite(f"{folder_path}/{img_name}.jpg", crop)
             img_name += 1
+
+            # print(orig_img.shape)
+            # idx = int(np.argmax(result.boxes.conf))
+            # x1, y1, x2, y2 = result.boxes.xyxy[idx].numpy()
+            # # 对预测框进行扩充裁剪
+            # img_h = len(orig_img[0])  # 图像高
+            # print("*" * 100, img_h)
+            # img_w = len(orig_img[1])  # 图像宽
+            # w = x2 - x1
+            # h = y2 - y1
+            # pad_w = w * self.pad_ratio
+            # pad_h = h * self.pad_ratio
+            # new_x1 = max(0, int(x1 - pad_w))  # 填充之后的坐标
+            # new_y1 = max(0, int(y1 - pad_h))
+            # new_x2 = min(img_w - 1, int(x2 + pad_w))
+            # new_y2 = min(img_h - 1, int(y2 + pad_h))
+            # crop = orig_img[new_y1:new_y2, new_x1:new_x2]
+            # crop_image_list.append(crop)
+            # cv.imwrite(f"{folder_path}/{img_name}.jpg", crop)
+            # img_name += 1
 
         return crop_image_list
 

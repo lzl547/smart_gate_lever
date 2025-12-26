@@ -4,10 +4,11 @@ import streamlit as st
 import numpy as np
 import cv2 as cv
 import os
+import torch
 
 if __name__ == '__main__':
     # yolov11模型路径
-    model_path = "runs/detect/train/weights/best.pt"
+    model_path = "runs/train4/weights/last.pt"
     # 图片中间结果输出文件夹路径
     out_dir = r".\out_results"
     # 上传的图片存储路径
@@ -46,6 +47,11 @@ if __name__ == '__main__':
             image_dir=original_picture_path,
             out_dir=out_dir,
         )
+        try:
+            ckpt = torch.load(model_path)
+            print("模型加载成功")
+        except Exception as e:
+            print(f"模型加载失败，错误原因: {e}")
         detect_results = model.predict()
         crop_results = model.crop_image(detect_results)
         # 用paddleocr对截取的图像进行字符提取
